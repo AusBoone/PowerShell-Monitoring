@@ -1,0 +1,4 @@
+# Ignore generated log files
+*log.csv
+# Ignore Pester test results
+*.xml
