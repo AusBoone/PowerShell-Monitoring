@@ -2,6 +2,7 @@
 # Each test validates core functionality with mocks so the module can run
 # without touching the real system. The tests focus on edge cases and
 # ensure that logging continues even when optional properties are missing.
+# These tests serve as executable documentation for expected behavior.
 
 BeforeAll {
     Import-Module "$PSScriptRoot/../MonitoringTools.psd1"
@@ -17,6 +18,33 @@ Describe 'Log-PerformanceData' {
         } finally {
             Remove-Item $temp -ErrorAction SilentlyContinue
         }
+    }
+
+    It 'triggers alert when CPU threshold exceeded' {
+        Mock Get-Counter {
+            [pscustomobject]@{
+                CounterSamples = @(
+                    [pscustomobject]@{ CounterName='\\Processor(_Total)\\% Processor Time'; CookedValue=95 },
+                    [pscustomobject]@{ CounterName='\\Memory\\Available MBytes'; CookedValue=1000 },
+                    [pscustomobject]@{ CounterName='\\PhysicalDisk(_Total)\\Disk Reads/sec'; CookedValue=50 },
+                    [pscustomobject]@{ CounterName='\\PhysicalDisk(_Total)\\Disk Writes/sec'; CookedValue=50 }
+                )
+            }
+        }
+        Mock Send-Alert {}
+        $temp = New-TemporaryFile
+        try {
+            Log-PerformanceData -PerformanceLog $temp.FullName -CpuThreshold 90
+            Assert-MockCalled Send-Alert -Times 1
+        } finally {
+            Remove-Item $temp -ErrorAction SilentlyContinue
+            Remove-Mock Get-Counter
+            Remove-Mock Send-Alert
+        }
+    }
+
+    It 'throws when CpuThreshold is out of range' {
+        { Log-PerformanceData -CpuThreshold 150 } | Should -Throw
     }
 }
 
@@ -67,6 +95,26 @@ Describe 'Log-DiskUsage' {
             Remove-Item $temp -ErrorAction SilentlyContinue
             Remove-Mock Get-PSDrive
         }
+    }
+
+    It 'alerts when disk usage exceeds threshold' {
+        Mock Get-PSDrive {
+            [pscustomobject]@{ Name='D'; Free=1GB; Size=2GB; Provider='FileSystem'; Used=$null }
+        }
+        Mock Send-Alert {}
+        $temp = New-TemporaryFile
+        try {
+            Log-DiskUsage -DiskUsageLog $temp.FullName -UsageThreshold 50
+            Assert-MockCalled Send-Alert -Times 1
+        } finally {
+            Remove-Item $temp -ErrorAction SilentlyContinue
+            Remove-Mock Get-PSDrive
+            Remove-Mock Send-Alert
+        }
+    }
+
+    It 'throws when UsageThreshold is out of range' {
+        { Log-DiskUsage -UsageThreshold 150 } | Should -Throw
     }
 }
 

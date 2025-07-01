@@ -5,7 +5,7 @@
     Module containing functions to collect CPU, memory, disk and
     network statistics. Logs are written as CSV records so that other
     tooling can ingest them easily. Optional alerting via SMTP is
-    provided when thresholds are crossed. Designed for Windows hosts
+    provided when CPU or disk usage thresholds are crossed. Designed for Windows hosts
     running PowerShell 5.1 or later and uses only built-in cmdlets.
 .EXAMPLE
     Import-Module .\MonitoringTools.psd1
@@ -68,9 +68,15 @@ function Log-PerformanceData {
     <#
         .SYNOPSIS
             Collects CPU, memory and disk counters.
+        .PARAMETER PerformanceLog
+            Path to the CSV log file that records counter samples.
+        .PARAMETER CpuThreshold
+            Optional percentage above which a CPU usage alert is generated.
     #>
     param(
-        [string]$PerformanceLog = 'performance_log.csv'
+        [string]$PerformanceLog = 'performance_log.csv',
+        [ValidateRange(0,100)]
+        [int]$CpuThreshold
     )
     try {
         # Query a few common counters representing CPU, memory and disk usage
@@ -85,6 +91,11 @@ function Log-PerformanceData {
         $out = [ordered]@{ Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') }
         foreach ($sample in $data.CounterSamples) {
             $out[$sample.CounterName] = $sample.CookedValue
+            # If CPU threshold provided, raise alert when exceeded
+            if ($CpuThreshold -and $sample.CounterName -match 'Processor' -and $sample.CookedValue -ge $CpuThreshold) {
+                $msg = "CPU usage $($sample.CookedValue)% exceeded threshold $CpuThreshold%"
+                Send-Alert -Message $msg -Subject 'CPU Threshold Exceeded'
+            }
         }
         # Append the record to the log for historical analysis
         [PSCustomObject]$out | Export-Csv -Path $PerformanceLog -Append -NoTypeInformation
@@ -97,9 +108,15 @@ function Log-DiskUsage {
     <#
         .SYNOPSIS
             Records disk usage for mounted drives.
+        .PARAMETER DiskUsageLog
+            Path to the CSV log storing drive usage history.
+        .PARAMETER UsageThreshold
+            Optional percentage that triggers an alert when drive usage exceeds it.
     #>
     param(
-        [string]$DiskUsageLog = 'disk_usage_log.csv'
+        [string]$DiskUsageLog = 'disk_usage_log.csv',
+        [ValidateRange(0,100)]
+        [int]$UsageThreshold
     )
     try {
         # Query local file system drives and calculate used percentage
@@ -117,6 +134,10 @@ function Log-DiskUsage {
                 $usedSpace = $drive.Used
             }
             $usagePercent = ($usedSpace / $drive.Size) * 100
+            if ($UsageThreshold -and $usagePercent -ge $UsageThreshold) {
+                $msg = "Drive $($drive.Name) usage $([math]::Round($usagePercent,2))% exceeded threshold $UsageThreshold%"
+                Send-Alert -Message $msg -Subject 'Disk Usage Threshold Exceeded'
+            }
             $entry = [ordered]@{
                 Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
                 Drive = $drive.Name
