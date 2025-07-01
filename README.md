@@ -15,6 +15,8 @@ It is designed to run periodically and can be easily configured using parameters
 # Requirements
 - PowerShell 3.0 or higher
 - Windows operating system (tested on Windows 10)
+- Local administrator rights to query performance counters and event logs
+- The `NetAdapter` module installed (included with modern Windows versions)
 
 # Usage
 1) Save the script (e.g., system_monitoring.ps1).
@@ -29,6 +31,25 @@ It is designed to run periodically and can be easily configured using parameters
 
 5) The script will run indefinitely and collect data at the specified interval. To stop the script, press Ctrl+C or close the PowerShell console.
 6) To send alerts based on specific conditions, implement the desired alert logic within the Send-Alert function in the script.
+
+The `Send-Alert` function is a stub you can extend to integrate with email or
+chat systems. Call it from the monitoring functions when thresholds are
+exceeded to receive real-time notifications.
+
+# Scheduling
+You can run the monitoring scripts automatically using **Task Scheduler**:
+1. Open Task Scheduler and create a new task.
+2. Set the trigger to start at boot or on a schedule of your choice.
+3. For the action, use `powershell.exe` with the full path to `system_monitoring.ps1` or `network_traffic.ps1`.
+4. Ensure the task runs with highest privileges so it can access system counters and logs.
+
+
+# Running Tests
+Pester tests are located in the `tests/` directory. Execute them from PowerShell:
+
+```powershell
+Invoke-Pester -Path .\tests
+```
 
 # Customization
 
