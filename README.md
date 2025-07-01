@@ -1,58 +1,71 @@
 # PowerShell-Monitoring
 
-This PowerShell script monitors system performance, disk usage, and event logs, logging the data into separate CSV files. 
-It is designed to run periodically and can be easily configured using parameters.
+This project provides scripts and a PowerShell module for collecting system and
+network statistics on Windows hosts. Metrics are written to CSV files so they
+can be reviewed or fed into other tools.
 
-# Features
-- Monitor system performance counters such as CPU usage, available memory, and disk read/write rates
-- Monitor disk usage by calculating the used space and percentage for each drive
-- Monitor event logs for critical, error, and warning events
-- Log the data into separate CSV files for performance, disk usage, and event logs
-- Runs periodically using a loop with a sleep timer
-- Error handling for each function to ensure script continues running even if an error occurs
-- Function template for sending alerts based on specific conditions (e.g., email or messaging platform)
+## Features
+- Monitor CPU, memory and disk performance counters
+- Track disk usage for each mounted drive
+- Capture recent system, application and security event log entries
+- Record network interface traffic statistics
+- Optional SMTP alerting via `Send-Alert`
+- Pester unit tests and GitHub Actions workflow
 
-# Requirements
-- PowerShell 3.0 or higher
-- Windows operating system (tested on Windows 10)
-- Local administrator rights to query performance counters and event logs
-- The `NetAdapter` module installed (included with modern Windows versions)
+## Requirements
+- PowerShell 5.1 or higher
+- Windows operating system
+- Administrative rights to query counters and logs
 
-# Usage
-1) Save the script (e.g., system_monitoring.ps1).
-2) Open PowerShell and navigate to the directory containing the script.
-3) Run the script using the following command:
+## Installation
+The monitoring commands are packaged as a module named **MonitoringTools**.
+You may import it directly from the repository or install it locally:
 
-.\system_monitoring.ps1
+```powershell
+# From the repository directory
+Import-Module .\MonitoringTools.psd1
+# Or install for use anywhere
+Install-Module -Name MonitoringTools -Scope CurrentUser -Force -SourcePath .
+```
 
-4) By default, the script logs performance data, disk usage, and event logs into separate CSV files (performance_log.csv, disk_usage_log.csv, and event_log.csv). You can change the file paths and sleep interval by providing parameters when running the script:
+## Usage
+Example running the system monitor script which imports the module and loops
+indefinitely:
 
-.\system_monitoring.ps1 -PerformanceLog "path\to\performance_log.csv" -DiskUsageLog "path\to\disk_usage_log.csv" -EventLog "path\to\event_log.csv" -SleepInterval 1800
+```powershell
+.\system_monitoring.ps1 -PerformanceLog perf.csv -DiskUsageLog disk.csv -EventLog events.csv -SleepInterval 900
+```
 
-5) The script will run indefinitely and collect data at the specified interval. To stop the script, press Ctrl+C or close the PowerShell console.
-6) To send alerts based on specific conditions, implement the desired alert logic within the Send-Alert function in the script.
+Network traffic monitoring works similarly:
 
-The `Send-Alert` function is a stub you can extend to integrate with email or
-chat systems. Call it from the monitoring functions when thresholds are
-exceeded to receive real-time notifications.
+```powershell
+.\network_traffic.ps1 -NetworkLog net.csv -SleepInterval 60
+```
 
-# Scheduling
-You can run the monitoring scripts automatically using **Task Scheduler**:
-1. Open Task Scheduler and create a new task.
-2. Set the trigger to start at boot or on a schedule of your choice.
-3. For the action, use `powershell.exe` with the full path to `system_monitoring.ps1` or `network_traffic.ps1`.
-4. Ensure the task runs with highest privileges so it can access system counters and logs.
+### Sending Alerts
+The `Send-Alert` function requires SMTP details:
 
+```powershell
+Send-Alert -Message "High CPU" -Subject "Alert" -SmtpServer "smtp.example.com" `
+    -Port 587 -From "monitor@example.com" -To "admin@example.com" `
+    -Credential (Get-Credential)
+```
 
-# Running Tests
-Pester tests are located in the `tests/` directory. Execute them from PowerShell:
+You can call `Send-Alert` from custom logic within the module functions when
+thresholds are exceeded.
+
+## Continuous Integration
+Pester tests run automatically via GitHub Actions. The workflow lives in
+`.github/workflows/pester.yml` and executes `Invoke-Pester` on Windows runners.
+
+Run tests locally with:
 
 ```powershell
 Invoke-Pester -Path .\tests
 ```
 
-# Customization
-
-- Modify the performance counters in the Log-PerformanceData function to monitor additional or different counters.
-- Adjust the event level in the Log-EventData function to include or exclude specific event types.
-- Implement additional monitoring functions or modify existing ones to fit your specific requirements.
+If PowerShell cannot download modules from the gallery due to network restrictions, clone the [Pester](https://github.com/pester/Pester) repository and import `Pester.psd1` from the `src` folder before running the tests.
+## Customization
+Modify the counters in `Log-PerformanceData` or adjust event levels in
+`Log-EventData` to match your environment. Additional functions can be added to
+`MonitoringTools.psm1` as needed.
