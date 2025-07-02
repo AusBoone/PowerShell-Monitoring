@@ -35,8 +35,9 @@ it directly from the repository or install it locally:
 ```powershell
 # From the repository directory
 Import-Module .\MonitoringTools.psd1
-# Or install for use anywhere
-Install-Module -Name MonitoringTools -Scope CurrentUser -Force -SourcePath .
+# Or install from a local repository
+Register-PSRepository -Name LocalRepo -SourceLocation (Get-Item .).FullName -InstallationPolicy Trusted
+Install-Module -Name MonitoringTools -Repository LocalRepo -Scope CurrentUser -Force
 ```
 
 ## Usage

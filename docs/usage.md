@@ -12,7 +12,8 @@ Import-Module .\MonitoringTools.psd1
 Alternatively install for global use:
 
 ```powershell
-Install-Module -Name MonitoringTools -Scope CurrentUser -Force -SourcePath .
+Register-PSRepository -Name LocalRepo -SourceLocation (Get-Item .).FullName -InstallationPolicy Trusted
+Install-Module -Name MonitoringTools -Repository LocalRepo -Scope CurrentUser -Force
 ```
 
 ## System Monitoring Script
