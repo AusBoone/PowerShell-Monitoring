@@ -17,8 +17,10 @@ Describe 'publish_module.ps1' {
         Mock Publish-Module {}
         Mock Update-ModuleManifest {}
         Mock Register-PSRepository {}
+        Mock Unregister-PSRepository {}
         & "$PSScriptRoot/../publish_module.ps1" -GalleryUri 'https://example.com' -ApiKey 'key' -Version '1.2.3' -Confirm:$false
         Assert-MockCalled Publish-Module -Times 1
+        Assert-MockCalled Unregister-PSRepository -Times 1
     }
 }
 

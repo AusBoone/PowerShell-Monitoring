@@ -20,6 +20,7 @@ Windows hosts. Metrics are written to CSV files for easy analysis.
 - Capture recent system, application and security event log entries
 - Record network interface traffic statistics
 - Optional SMTP alerting via `Send-Alert`
+- Scripts support optional iteration limits for controlled execution
 - Pester unit tests and GitHub Actions workflow
 
 ## Requirements

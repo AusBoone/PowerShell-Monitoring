@@ -5,14 +5,16 @@
     Module containing functions to collect CPU, memory, disk and
     network statistics. Logs are written as CSV records so that other
     tooling can ingest them easily. Optional alerting via SMTP is
-    provided when CPU or disk usage thresholds are crossed. Designed for Windows hosts
-    running PowerShell 5.1 or later and uses only built-in cmdlets.
+    provided when CPU or disk usage thresholds are crossed. Designed for Windows
+    hosts running PowerShell 5.1 or later and uses only built-in cmdlets.
 .EXAMPLE
     Import-Module .\MonitoringTools.psd1
     Log-PerformanceData -PerformanceLog perf.csv
 .NOTES
     Functions emit warnings rather than terminating so monitoring
     continues even if a single query fails.
+    Added optional credential/SSL handling and automatic log directory
+    creation to improve robustness.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -39,6 +41,8 @@ function Send-Alert {
             Recipient address.
         .PARAMETER Credential
             Credential object for SMTP authentication if required.
+        .PARAMETER UseSsl
+            Include this switch to send the message over an SSL connection.
     #>
     param(
         [Parameter(Mandatory)]
@@ -51,12 +55,24 @@ function Send-Alert {
         [string]$From,
         [Parameter(Mandatory)]
         [string]$To,
-        [pscredential]$Credential
+        [pscredential]$Credential,
+        [switch]$UseSsl
     )
     try {
-        # Use the built in cmdlet so sending mail works without extra modules
-        Send-MailMessage -To $To -From $From -Subject $Subject -Body $Message \
-            -SmtpServer $SmtpServer -Port $Port -Credential $Credential -UseSsl
+        # Build parameter set dynamically so optional values are only passed
+        $mailParams = @{
+            To         = $To
+            From       = $From
+            Subject    = $Subject
+            Body       = $Message
+            SmtpServer = $SmtpServer
+            Port       = $Port
+        }
+        if ($Credential) { $mailParams.Credential = $Credential }
+        if ($UseSsl.IsPresent) { $mailParams.UseSsl = $true }
+
+        # Use the built-in cmdlet so sending mail works without extra modules
+        Send-MailMessage @mailParams
     } catch {
         Write-Warning "Failed to send alert: $_"
     }
@@ -96,6 +112,11 @@ function Log-PerformanceData {
                 $msg = "CPU usage $($sample.CookedValue)% exceeded threshold $CpuThreshold%"
                 Send-Alert -Message $msg -Subject 'CPU Threshold Exceeded'
             }
+        }
+        # Ensure log directory exists so Export-Csv succeeds on first run
+        $dir = Split-Path -Path $PerformanceLog -Parent
+        if ($dir -and -not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
         # Append the record to the log for historical analysis
         [PSCustomObject]$out | Export-Csv -Path $PerformanceLog -Append -NoTypeInformation
@@ -139,9 +160,14 @@ function Log-DiskUsage {
                 Send-Alert -Message $msg -Subject 'Disk Usage Threshold Exceeded'
             }
             $entry = [ordered]@{
-                Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-                Drive = $drive.Name
+                Timestamp     = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+                Drive         = $drive.Name
                 UsedPercentage = $usagePercent
+            }
+            # Ensure target directory exists before writing
+            $dir = Split-Path -Path $DiskUsageLog -Parent
+            if ($dir -and -not (Test-Path $dir)) {
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
             }
             # Append usage stats to the CSV log
             [PSCustomObject]$entry | Export-Csv -Path $DiskUsageLog -Append -NoTypeInformation
@@ -174,6 +200,11 @@ function Log-EventData {
                     EventID = $e.Id
                     Level = $e.LevelDisplayName
                     Message = $e.Message
+                }
+                # Ensure target directory exists before writing
+                $dir = Split-Path -Path $EventLog -Parent
+                if ($dir -and -not (Test-Path $dir)) {
+                    New-Item -ItemType Directory -Path $dir -Force | Out-Null
                 }
                 # Append each event to the log file
                 [PSCustomObject]$obj | Export-Csv -Path $EventLog -Append -NoTypeInformation
@@ -224,6 +255,11 @@ function Log-NetworkTraffic {
             BytesSent = $stats.BytesSent
             PacketsReceived = $stats.PacketsReceived
             PacketsSent = $stats.PacketsSent
+        }
+        # Ensure directory exists before writing the snapshot
+        $dir = Split-Path -Path $NetworkLog -Parent
+        if ($dir -and -not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
         # Log the snapshot of current traffic counters
         [PSCustomObject]$out | Export-Csv -Path $NetworkLog -Append -NoTypeInformation
