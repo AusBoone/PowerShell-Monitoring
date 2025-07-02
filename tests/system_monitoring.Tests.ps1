@@ -146,3 +146,100 @@ Describe 'Log-NetworkTraffic' {
         }
     }
 }
+
+Describe 'Send-Alert' {
+    It 'sends mail without credential or SSL' {
+        Mock Send-MailMessage {}
+        Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com'
+        Assert-MockCalled Send-MailMessage -ParameterFilter { -not $Credential -and -not $UseSsl } -Times 1
+        Remove-Mock Send-MailMessage
+    }
+
+    It 'includes credential and SSL when provided' {
+        Mock Send-MailMessage {}
+        $cred = New-Object System.Management.Automation.PSCredential('u',(ConvertTo-SecureString 'p' -AsPlainText -Force))
+        Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' -Credential $cred -UseSsl
+        Assert-MockCalled Send-MailMessage -ParameterFilter { $Credential -eq $cred -and $UseSsl } -Times 1
+        Remove-Mock Send-MailMessage
+    }
+}
+
+Describe 'Log directory creation' {
+    It 'creates directory for performance log automatically' {
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+        $file = Join-Path $dir 'perf.csv'
+        try {
+            Log-PerformanceData -PerformanceLog $file
+            Test-Path $file | Should -BeTrue
+        } finally {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'creates directory for disk usage log automatically' {
+        Mock Get-PSDrive {
+            [pscustomobject]@{ Name='C'; Free=1GB; Size=2GB; Provider='FileSystem'; Used=1GB }
+        }
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+        $file = Join-Path $dir 'disk.csv'
+        try {
+            Log-DiskUsage -DiskUsageLog $file
+            Test-Path $file | Should -BeTrue
+        } finally {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Mock Get-PSDrive
+        }
+    }
+
+    It 'creates directory for event log automatically' {
+        Mock Get-WinEvent { @() }
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+        $file = Join-Path $dir 'events.csv'
+        try {
+            Log-EventData -EventLog $file
+            Test-Path $file | Should -BeTrue
+        } finally {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Mock Get-WinEvent
+        }
+    }
+
+    It 'creates directory for network log automatically' {
+        Mock Get-NetAdapterStatistics { [pscustomobject]@{ BytesReceived=0; BytesSent=0; PacketsReceived=0; PacketsSent=0 } }
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+        $file = Join-Path $dir 'net.csv'
+        try {
+            Log-NetworkTraffic -Interface @{ InterfaceIndex = 1; Name='eth0' } -NetworkLog $file
+            Test-Path $file | Should -BeTrue
+        } finally {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Mock Get-NetAdapterStatistics
+        }
+    }
+}
+
+Describe 'Script iteration limits' {
+    It 'system script stops after specified iterations' {
+        Mock Log-PerformanceData {}
+        Mock Log-DiskUsage {}
+        Mock Log-EventData {}
+        Mock Start-Sleep {}
+        & "$PSScriptRoot/../system_monitoring.ps1" -Iterations 2 -SleepInterval 0
+        Assert-MockCalled Log-PerformanceData -Times 2
+        Remove-Mock Log-PerformanceData
+        Remove-Mock Log-DiskUsage
+        Remove-Mock Log-EventData
+        Remove-Mock Start-Sleep
+    }
+
+    It 'network script stops after specified iterations' {
+        Mock Get-NetworkInterfaces { @( @{ InterfaceIndex=1; Name='eth0' } ) }
+        Mock Log-NetworkTraffic {}
+        Mock Start-Sleep {}
+        & "$PSScriptRoot/../network_traffic.ps1" -Iterations 3 -SleepInterval 0
+        Assert-MockCalled Log-NetworkTraffic -Times 3
+        Remove-Mock Get-NetworkInterfaces
+        Remove-Mock Log-NetworkTraffic
+        Remove-Mock Start-Sleep
+    }
+}

@@ -8,8 +8,10 @@
 # Usage:      .\system_monitoring.ps1 [-PerformanceLog <path>] [-DiskUsageLog <path>]
 #                                     [-EventLog <path>] [-SleepInterval <seconds>]
 #                                     [-CpuThreshold <percent>] [-DiskUsageThreshold <percent>]
-# Design:     Runs continuously until terminated, logging metrics on every
-#             iteration using the interval provided. Optional threshold
+#                                     [-Iterations <count>]
+# Design:     Runs continuously or for a limited number of iterations when
+#             -Iterations is specified. Logs metrics each cycle using the
+#             interval provided. Optional threshold
 #             parameters generate alerts when usage exceeds limits. Parameters
 #             include validation to catch values outside acceptable ranges
 #             before the monitoring loop begins.
@@ -27,12 +29,18 @@ param(
     [ValidateRange(0,100)]
     [int]$CpuThreshold,
     [ValidateRange(0,100)]
-    [int]$DiskUsageThreshold
+    [int]$DiskUsageThreshold,
+    [ValidateRange(1,[int]::MaxValue)]
+    # Number of monitoring cycles to run. Using [int]::MaxValue effectively
+    # means run indefinitely when a limit is not specified.
+    [int]$Iterations = [int]::MaxValue
 )
 
 Import-Module "$PSScriptRoot/MonitoringTools.psd1"
 
-while ($true) {
+# Repeat the monitoring cycle the requested number of times. Leaving
+# -Iterations at the default effectively continues indefinitely.
+for ($i = 0; $i -lt $Iterations; $i++) {
     # Collect various system metrics and append them to their logs. This keeps
     # historical records that other tools can ingest.
     Log-PerformanceData -PerformanceLog $PerformanceLog -CpuThreshold $CpuThreshold

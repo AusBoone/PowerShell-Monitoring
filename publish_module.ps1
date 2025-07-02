@@ -6,7 +6,8 @@
 #           official releases so versioning stays consistent.
 # Usage   : .\publish_module.ps1 -GalleryUri <URI> -ApiKey <key> -Version <ver>
 # Notes   : Requires PowerShellGet and Publish-Module. Pass -WhatIf to preview
-#           the publish process without uploading.
+#           the publish process without uploading. The script now cleans up the
+#           temporary repository entry after publishing.
 # ----------------------------------------------------------------------------
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
@@ -44,5 +45,9 @@ try {
     }
 } catch {
     throw "Failed to publish module: $_"
+} finally {
+    # Remove the temporary repository regardless of success or failure so
+    # publishing does not leave an extra entry in the repository list.
+    Unregister-PSRepository -Name $repoName -ErrorAction SilentlyContinue
 }
 
