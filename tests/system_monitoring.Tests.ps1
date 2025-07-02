@@ -113,6 +113,23 @@ Describe 'Log-DiskUsage' {
         }
     }
 
+    It 'skips drives reporting zero size' {
+        # Simulate a drive where the Size property is zero which could cause a divide-by-zero
+        Mock Get-PSDrive {
+            [pscustomobject]@{ Name='Z'; Free=0; Size=0; Provider='FileSystem'; Used=0 }
+        }
+        $dir = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid()))
+        $file = Join-Path $dir.FullName 'disk.csv'
+        try {
+            Log-DiskUsage -DiskUsageLog $file
+            # File should not exist because the entry is skipped
+            Test-Path $file | Should -BeFalse
+        } finally {
+            Remove-Item $dir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Mock Get-PSDrive
+        }
+    }
+
     It 'throws when UsageThreshold is out of range' {
         { Log-DiskUsage -UsageThreshold 150 } | Should -Throw
     }
@@ -161,6 +178,13 @@ Describe 'Send-Alert' {
         Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' -Credential $cred -UseSsl
         Assert-MockCalled Send-MailMessage -ParameterFilter { $Credential -eq $cred -and $UseSsl } -Times 1
         Remove-Mock Send-MailMessage
+    }
+
+    It 'validates mandatory parameters are not empty' {
+        { Send-Alert -Message '' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' } | Should -Throw
+        { Send-Alert -Message 'm' -SmtpServer '' -From 'f@e.com' -To 't@e.com' } | Should -Throw
+        { Send-Alert -Message 'm' -SmtpServer 's' -From '' -To 't@e.com' } | Should -Throw
+        { Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To '' } | Should -Throw
     }
 }
 

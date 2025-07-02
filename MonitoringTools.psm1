@@ -15,6 +15,8 @@
     continues even if a single query fails.
     Added optional credential/SSL handling and automatic log directory
     creation to improve robustness.
+    This revision adds strict error handling (-ErrorAction Stop) to critical
+    cmdlets and skips disk usage entries when a drive reports zero size.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -46,14 +48,18 @@ function Send-Alert {
     #>
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty]
         [string]$Message,
         [string]$Subject = 'Monitoring Alert',
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty]
         [string]$SmtpServer,
         [int]$Port = 25,
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty]
         [string]$From,
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty]
         [string]$To,
         [pscredential]$Credential,
         [switch]$UseSsl
@@ -102,7 +108,7 @@ function Log-PerformanceData {
             '\\PhysicalDisk(_Total)\\Disk Reads/sec',
             '\\PhysicalDisk(_Total)\\Disk Writes/sec'
         )
-        $data = Get-Counter -Counter $counters
+        $data = Get-Counter -Counter $counters -ErrorAction Stop
         # Build a record keyed by counter name with the current timestamp
         $out = [ordered]@{ Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') }
         foreach ($sample in $data.CounterSamples) {
@@ -141,11 +147,15 @@ function Log-DiskUsage {
     )
     try {
         # Query local file system drives and calculate used percentage
-        $drives = Get-PSDrive -PSProvider FileSystem
+        $drives = Get-PSDrive -PSProvider FileSystem -ErrorAction Stop
         foreach ($drive in $drives) {
             if ($null -eq $drive.Size) {
                 # Some special drives do not expose size information
                 Write-Warning "Drive $($drive.Name) missing size information"
+                continue
+            }
+            if ($drive.Size -eq 0) {
+                Write-Warning "Drive $($drive.Name) size reported as zero; skipping"
                 continue
             }
             # On some systems the Used property is unavailable, so compute it
@@ -192,7 +202,7 @@ function Log-EventData {
         $start = $script:lastEventTime
         $latest = $script:lastEventTime
         foreach ($log in $logs) {
-            $events = Get-WinEvent -FilterHashTable @{LogName=$log; Level=$eventLevel; StartTime=$start}
+            $events = Get-WinEvent -FilterHashTable @{LogName=$log; Level=$eventLevel; StartTime=$start} -ErrorAction Stop
             foreach ($e in $events) {
                 $obj = [ordered]@{
                     Timestamp = $e.TimeCreated
@@ -228,7 +238,7 @@ function Get-NetworkInterfaces {
     #>
     try {
         # Filter to adapters that are currently operational
-        Get-NetAdapter | Where-Object { $_.Status -eq 'Up' }
+        Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' }
     } catch {
         Write-Warning "Error retrieving network interfaces: $_"
     }
@@ -246,7 +256,7 @@ function Log-NetworkTraffic {
     )
     try {
         # Gather byte and packet counts for the specified adapter
-        $stats = Get-NetAdapterStatistics -InterfaceIndex $Interface.InterfaceIndex
+        $stats = Get-NetAdapterStatistics -InterfaceIndex $Interface.InterfaceIndex -ErrorAction Stop
         $out = [ordered]@{
             Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
             InterfaceName = $Interface.Name
