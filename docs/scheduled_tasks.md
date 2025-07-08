@@ -12,8 +12,8 @@ Example hourly setup:
     -CpuThreshold 90 -DiskUsageThreshold 80 -InterfaceName Ethernet
 ```
 
-`-InterfaceName` restricts logging to a specific adapter when multiple are
-present.
+`-InterfaceName` restricts logging to one or more adapters when multiple are
+present. Provide a comma-separated list to track several interfaces at once.
 
 Remove tasks by running:
 

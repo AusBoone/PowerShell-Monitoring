@@ -6,15 +6,19 @@
 #           collection without keeping a console session open. Supports
 #           passing CPU and disk usage thresholds to the monitoring script so
 #           alerts can be generated automatically. Parameter validation prevents
-#           percentage values outside 0-100 from being accepted.
+#           percentage values outside 0-100 from being accepted. Network
+#           monitoring can be limited to specific adapters using -InterfaceName.
 # Usage   : .\setup-scheduled-task.ps1 [-Frequency <Hourly|Daily>] [-Remove] \
 #               [-PerformanceLog <path>] [-DiskUsageLog <path>] [-EventLog <path>] \
-#               [-NetworkLog <path>] [-CpuThreshold <percent>] [-DiskUsageThreshold <percent>]
+#               [-NetworkLog <path>] [-CpuThreshold <percent>] [-DiskUsageThreshold <percent>] \
+#               [-InterfaceName <name>]
 # ----------------------------------------------------------------------------
 # Revision : Updated parameter checks to use PSBoundParameters.ContainsKey so
 #             zero can be passed as a valid threshold value.
 #             Added module import verification for clearer failures when the
 #             MonitoringTools module is missing.
+#             Introduced optional -InterfaceName parameter for network task
+#             filtering.
 [CmdletBinding()]
 param(
     [ValidateSet('Hourly','Daily')]
@@ -24,6 +28,8 @@ param(
     [string]$DiskUsageLog = 'disk_usage_log.csv',
     [string]$EventLog = 'event_log.csv',
     [string]$NetworkLog = 'network_log.csv',
+    [ValidateNotNullOrEmpty()]
+    [string[]]$InterfaceName,
     [ValidateRange(0,100)]
     [int]$CpuThreshold,
     [ValidateRange(0,100)]
@@ -88,6 +94,11 @@ if ($PSBoundParameters.ContainsKey('DiskUsageThreshold')) {
     $sysArgs += " -DiskUsageThreshold $DiskUsageThreshold"
 }
 $netArgs = "-File `"$netScript`" -NetworkLog `"$NetworkLog`""
+if ($PSBoundParameters.ContainsKey('InterfaceName')) {
+    # Pass a comma separated list so the network script can interpret multiple
+    # adapter names or indexes correctly.
+    $netArgs += " -InterfaceName $($InterfaceName -join ',')"
+}
 
 # Each action starts PowerShell with the script path and log file arguments.
 $sysAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $sysArgs
