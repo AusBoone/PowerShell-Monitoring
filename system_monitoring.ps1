@@ -43,8 +43,22 @@ Import-Module "$PSScriptRoot/MonitoringTools.psd1"
 for ($i = 0; $i -lt $Iterations; $i++) {
     # Collect various system metrics and append them to their logs. This keeps
     # historical records that other tools can ingest.
-    Log-PerformanceData -PerformanceLog $PerformanceLog -CpuThreshold $CpuThreshold
-    Log-DiskUsage -DiskUsageLog $DiskUsageLog -UsageThreshold $DiskUsageThreshold
+    # Build the parameter sets dynamically so optional threshold values are only
+    # supplied when explicitly specified by the caller. Passing `$null` directly to
+    # the functions would otherwise be interpreted as `0` due to the strongly typed
+    # integer parameters, resulting in constant alerts.
+    $perfParams = @{ PerformanceLog = $PerformanceLog }
+    if ($PSBoundParameters.ContainsKey('CpuThreshold')) {
+        $perfParams.CpuThreshold = $CpuThreshold
+    }
+    Log-PerformanceData @perfParams
+
+    $diskParams = @{ DiskUsageLog = $DiskUsageLog }
+    if ($PSBoundParameters.ContainsKey('DiskUsageThreshold')) {
+        $diskParams.UsageThreshold = $DiskUsageThreshold
+    }
+    Log-DiskUsage @diskParams
+
     Log-EventData -EventLog $EventLog
     # Pause before the next collection cycle so the log interval is predictable
     Start-Sleep -Seconds $SleepInterval
