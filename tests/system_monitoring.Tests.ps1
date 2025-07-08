@@ -162,6 +162,21 @@ Describe 'Log-NetworkTraffic' {
             Remove-Item $temp -ErrorAction SilentlyContinue
         }
     }
+
+    It 'resolves interfaces by name' {
+        # Mock adapter retrieval and statistics so no real network calls occur.
+        Mock Get-NetAdapter { @{ Name='eth0'; InterfaceIndex=1; Status='Up' } }
+        Mock Get-NetAdapterStatistics { @{ BytesReceived=1; BytesSent=1; PacketsReceived=1; PacketsSent=1 } }
+        $temp = New-TemporaryFile
+        try {
+            Log-NetworkTraffic -InterfaceName eth0 -NetworkLog $temp.FullName
+            (Import-Csv $temp.FullName).InterfaceName | Should -Be 'eth0'
+        } finally {
+            Remove-Item $temp -ErrorAction SilentlyContinue
+            Remove-Mock Get-NetAdapter
+            Remove-Mock Get-NetAdapterStatistics
+        }
+    }
 }
 
 Describe 'Send-Alert' {
@@ -265,8 +280,21 @@ Describe 'Script iteration limits' {
         # Again mock the sleep call and pass the lowest valid interval to keep
         # the test fast while staying within the allowed range.
         Mock Start-Sleep {}
-        & "$PSScriptRoot/../network_traffic.ps1" -Iterations 3 -SleepInterval 1
+        & "$PSScriptRoot/../network_traffic.ps1" -Iterations 3 -SleepInterval 1 -InterfaceName eth0
         Assert-MockCalled Log-NetworkTraffic -Times 3
+        Remove-Mock Get-NetworkInterfaces
+        Remove-Mock Log-NetworkTraffic
+        Remove-Mock Start-Sleep
+    }
+
+    It 'filters interfaces by name' {
+        $iface0 = @{ InterfaceIndex=1; Name='eth0' }
+        $iface1 = @{ InterfaceIndex=2; Name='eth1' }
+        Mock Get-NetworkInterfaces { @($iface0,$iface1) }
+        Mock Log-NetworkTraffic {}
+        Mock Start-Sleep {}
+        & "$PSScriptRoot/../network_traffic.ps1" -Iterations 1 -SleepInterval 1 -InterfaceName eth1
+        Assert-MockCalled Log-NetworkTraffic -ParameterFilter { $Interface.Name -eq 'eth1' } -Times 1
         Remove-Mock Get-NetworkInterfaces
         Remove-Mock Log-NetworkTraffic
         Remove-Mock Start-Sleep

@@ -4,11 +4,15 @@
 # Purpose:    Wrapper invoking module functions to log adapter statistics on a
 #             repeating interval. The module is loaded from the repository so it
 #             can be executed without installation. Parameter validation ensures
-#             the sleep interval is always a positive integer.
-# Usage:      .\network_traffic.ps1 [-NetworkLog <path>] [-SleepInterval <seconds>] [-Iterations <count>]
+#             the sleep interval is always a positive integer. Adapters can be
+#             targeted using -InterfaceName to reduce noise when only certain
+#             interfaces matter.
+# Usage:      .\network_traffic.ps1 [-NetworkLog <path>] [-SleepInterval <seconds>] [-Iterations <count>] [-InterfaceName <name>]
 # ----------------------------------------------------------------------------
-# Revision:   Added module import validation to surface clear errors when
-#             dependencies cannot be loaded.
+# Revision:   Added optional interface filtering so traffic can be monitored for
+#             specific adapters by name or index. Includes module import
+#             validation to surface clear errors when dependencies cannot be
+#             loaded.
 
 [CmdletBinding()]
 param(
@@ -18,7 +22,11 @@ param(
     [ValidateRange(1,[int]::MaxValue)]
     # How many times to collect traffic data. Default runs effectively
     # forever by using the largest integer value.
-    [int]$Iterations = [int]::MaxValue
+    [int]$Iterations = [int]::MaxValue,
+    # Optional list of adapter names or indexes to monitor. When omitted all
+    # active adapters are logged. Names and indexes are compared as strings so
+    # either `Ethernet` or `1` work interchangeably.
+    [string[]]$InterfaceName
 )
 
 try {
@@ -34,8 +42,16 @@ try {
 # behaves like the prior infinite while loop used for continuous logging.
 for ($i = 0; $i -lt $Iterations; $i++) {
     # Retrieve the active interfaces on each iteration so that newly added
-    # adapters are automatically included in monitoring.
+    # adapters are automatically included in monitoring. When -InterfaceName was
+    # specified limit results to the requested adapters by comparing both the
+    # friendly name and interface index string.
     $interfaces = Get-NetworkInterfaces
+    if ($InterfaceName) {
+        $interfaces = $interfaces | Where-Object {
+            $InterfaceName -contains $_.Name -or
+            $InterfaceName -contains $_.InterfaceIndex.ToString()
+        }
+    }
     foreach ($iface in $interfaces) {
         # Record traffic counters for each adapter
         Log-NetworkTraffic -Interface $iface -NetworkLog $NetworkLog

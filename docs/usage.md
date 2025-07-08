@@ -32,11 +32,16 @@ Metrics append to CSV files so other tools can ingest them.
 
 ## Network Traffic Script
 
-`network_traffic.ps1` logs interface statistics every interval. It also accepts
-`-Iterations` for finite execution.
+`network_traffic.ps1` logs interface statistics every interval. Specify
+`-InterfaceName` to monitor particular adapters by name or index. The script
+also accepts `-Iterations` for finite execution.
 
 ```powershell
+# Monitor all adapters
 ./network_traffic.ps1 -NetworkLog net.csv -SleepInterval 60 -Iterations 10
+
+# Monitor a specific interface by name
+./network_traffic.ps1 -InterfaceName Ethernet -Iterations 5
 ```
 
 ## Alerting

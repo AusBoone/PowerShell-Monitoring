@@ -9,8 +9,11 @@ Example hourly setup:
 ```powershell
 ./setup-scheduled-task.ps1 -Frequency Hourly -PerformanceLog perf.csv \
     -DiskUsageLog disk.csv -EventLog events.csv -NetworkLog net.csv \
-    -CpuThreshold 90 -DiskUsageThreshold 80
+    -CpuThreshold 90 -DiskUsageThreshold 80 -InterfaceName Ethernet
 ```
+
+`-InterfaceName` restricts logging to a specific adapter when multiple are
+present.
 
 Remove tasks by running:
 
