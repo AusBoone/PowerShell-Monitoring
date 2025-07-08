@@ -410,4 +410,9 @@ Describe 'Loop parameter validation' {
         { & "$PSScriptRoot/../network_traffic.ps1" -Iterations 0 } | Should -Throw
         { & "$PSScriptRoot/../network_traffic.ps1" -Iterations -1 } | Should -Throw
     }
+    # Validate that interface names cannot be empty strings so parameter
+    # validation prevents useless iterations when the argument is blank.
+    It 'network script rejects empty interface name' {
+        { & "$PSScriptRoot/../network_traffic.ps1" -InterfaceName '' } | Should -Throw
+    }
 }
