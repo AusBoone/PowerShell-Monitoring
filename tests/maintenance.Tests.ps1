@@ -1,6 +1,9 @@
-# Tests covering helper scripts for module maintenance and automation.
-# These tests mock Windows-specific cmdlets so they can run on any platform.
-# Each scenario verifies that the helper scripts behave correctly without
+# Pester tests for the maintenance helper scripts.
+#
+# The helper scripts manage module publishing and creation of Windows
+# scheduled tasks. These tests run cross-platform by mocking the
+# Windows-specific cmdlets they depend on. Each scenario validates that
+# expected commands are invoked with the correct parameters without
 # modifying the real environment.
 
 BeforeAll {
@@ -29,6 +32,9 @@ Describe 'setup-scheduled-task.ps1' {
         Mock Get-Command { [pscustomobject]@{ Name='Register-ScheduledTask' } }
         Mock Register-ScheduledTask {}
         Mock Unregister-ScheduledTask {}
+        # Default trigger and action mocks prevent platform-specific calls
+        # from executing during tests. Individual examples override these
+        # mocks when inspecting parameters.
         Mock New-ScheduledTaskTrigger { 'trigger' }
         Mock New-ScheduledTaskAction { 'action' }
     }
@@ -41,6 +47,44 @@ Describe 'setup-scheduled-task.ps1' {
 
     It 'throws on invalid frequency' {
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -Frequency Weekly } | Should -Throw
+    }
+
+    # Verify the helper function creates the expected hourly trigger configuration
+    It 'returns hourly trigger with one hour interval' {
+        # Load the function by executing the script with -Remove so no tasks
+        # are registered. The function remains defined for direct invocation.
+        & "$PSScriptRoot/../setup-scheduled-task.ps1" -Remove
+
+        # Capture parameters passed to New-ScheduledTaskTrigger
+        Mock New-ScheduledTaskTrigger {
+            param($Once,$At,$RepetitionInterval,$RepetitionDuration)
+            $script:hourlyParams = $PSBoundParameters
+            return 'hourlyTrigger'
+        }
+
+        $result = New-TaskTrigger -Freq 'Hourly'
+
+        $result | Should -Be 'hourlyTrigger'
+        $script:hourlyParams.Once | Should -BeTrue
+        $script:hourlyParams.RepetitionInterval.Hours | Should -Be 1
+        $script:hourlyParams.RepetitionDuration | Should -Be [TimeSpan]::MaxValue
+    }
+
+    # Verify the helper function creates the expected daily trigger configuration
+    It 'returns daily trigger at midnight' {
+        & "$PSScriptRoot/../setup-scheduled-task.ps1" -Remove
+
+        Mock New-ScheduledTaskTrigger {
+            param($Daily,$At)
+            $script:dailyParams = $PSBoundParameters
+            return 'dailyTrigger'
+        }
+
+        $result = New-TaskTrigger -Freq 'Daily'
+
+        $result | Should -Be 'dailyTrigger'
+        $script:dailyParams.Daily | Should -BeTrue
+        $script:dailyParams.At.ToString('HH:mm') | Should -Be '00:00'
     }
 
     It 'passes threshold parameters to system script' {
@@ -61,6 +105,26 @@ Describe 'setup-scheduled-task.ps1' {
         & "$PSScriptRoot/../setup-scheduled-task.ps1" -CpuThreshold 0 -DiskUsageThreshold 0
         $script:zeroArgs | Should -Match '-CpuThreshold 0'
         $script:zeroArgs | Should -Match '-DiskUsageThreshold 0'
+    }
+
+    # Ensure Register-ScheduledTask receives the proper script paths and arguments
+    It 'registers tasks with correct script details' {
+        Mock Register-ScheduledTask {
+            param($TaskName, $TaskPath, $Action, $Trigger, $Force, $Description)
+            if ($TaskName -eq 'SystemMonitoring') { $script:sysArgs = $Action.Argument }
+            if ($TaskName -eq 'NetworkTraffic') { $script:netArgs = $Action.Argument }
+        }
+
+        & "$PSScriptRoot/../setup-scheduled-task.ps1"
+
+        $repoRoot = Split-Path $PSScriptRoot -Parent
+        $expectedSys = Join-Path $repoRoot 'system_monitoring.ps1'
+        $expectedNet = Join-Path $repoRoot 'network_traffic.ps1'
+
+        $script:sysArgs | Should -Match [regex]::Escape($expectedSys)
+        $script:netArgs | Should -Match [regex]::Escape($expectedNet)
+        $script:sysArgs | Should -Match '-PerformanceLog'
+        $script:netArgs | Should -Match '-NetworkLog'
     }
 
     It 'throws when threshold values are out of range' {
