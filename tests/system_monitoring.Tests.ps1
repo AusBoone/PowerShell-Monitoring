@@ -322,3 +322,24 @@ Describe 'Module loading errors' {
         Remove-Mock Import-Module
     }
 }
+Describe 'Loop parameter validation' {
+    # Ensure invalid SleepInterval values trigger a parameter error
+    It 'system script rejects invalid sleep interval' {
+        { & "$PSScriptRoot/../system_monitoring.ps1" -SleepInterval 0 } | Should -Throw
+        { & "$PSScriptRoot/../system_monitoring.ps1" -SleepInterval -5 } | Should -Throw
+    }
+    # Ensure invalid Iterations counts throw an error before execution begins
+    It 'system script rejects invalid iterations count' {
+        { & "$PSScriptRoot/../system_monitoring.ps1" -Iterations 0 } | Should -Throw
+        { & "$PSScriptRoot/../system_monitoring.ps1" -Iterations -2 } | Should -Throw
+    }
+    # Validate network script parameters with the same boundaries
+    It 'network script rejects invalid sleep interval' {
+        { & "$PSScriptRoot/../network_traffic.ps1" -SleepInterval 0 } | Should -Throw
+        { & "$PSScriptRoot/../network_traffic.ps1" -SleepInterval -3 } | Should -Throw
+    }
+    It 'network script rejects invalid iterations count' {
+        { & "$PSScriptRoot/../network_traffic.ps1" -Iterations 0 } | Should -Throw
+        { & "$PSScriptRoot/../network_traffic.ps1" -Iterations -1 } | Should -Throw
+    }
+}
