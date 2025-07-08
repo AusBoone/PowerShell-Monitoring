@@ -26,7 +26,8 @@ Windows hosts. Metrics are written to CSV files for easy analysis.
 ## Requirements
 - PowerShell 5.1 or higher
 - Windows operating system
-- Administrative rights to query counters and logs
+- Scripts must run with administrator privileges to access performance counters,
+  event logs and task scheduling features
 
 ## Installation
 The monitoring commands are packaged as a module named **MonitoringTools**. Import
