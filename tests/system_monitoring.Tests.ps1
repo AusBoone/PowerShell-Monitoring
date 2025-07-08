@@ -257,6 +257,8 @@ Describe 'Log directory creation' {
     }
 }
 
+# These tests validate that the wrapper scripts respect iteration counts and
+# avoid unnecessary sleeps after the final loop completes.
 Describe 'Script iteration limits' {
     It 'system script stops after specified iterations' {
         Mock Log-PerformanceData {}
@@ -268,6 +270,9 @@ Describe 'Script iteration limits' {
         Mock Start-Sleep {}
         & "$PSScriptRoot/../system_monitoring.ps1" -Iterations 2 -SleepInterval 1
         Assert-MockCalled Log-PerformanceData -Times 2
+        # Start-Sleep should only run once because the script exits after the
+        # last iteration without pausing.
+        Assert-MockCalled Start-Sleep -Times 1
         Remove-Mock Log-PerformanceData
         Remove-Mock Log-DiskUsage
         Remove-Mock Log-EventData
@@ -282,6 +287,8 @@ Describe 'Script iteration limits' {
         Mock Start-Sleep {}
         & "$PSScriptRoot/../network_traffic.ps1" -Iterations 3 -SleepInterval 1 -InterfaceName eth0
         Assert-MockCalled Log-NetworkTraffic -Times 3
+        # Sleep should be called once per iteration except the last
+        Assert-MockCalled Start-Sleep -Times 2
         Remove-Mock Get-NetworkInterfaces
         Remove-Mock Log-NetworkTraffic
         Remove-Mock Start-Sleep
@@ -295,6 +302,8 @@ Describe 'Script iteration limits' {
         Mock Start-Sleep {}
         & "$PSScriptRoot/../network_traffic.ps1" -Iterations 1 -SleepInterval 1 -InterfaceName eth1
         Assert-MockCalled Log-NetworkTraffic -ParameterFilter { $Interface.Name -eq 'eth1' } -Times 1
+        # When only one iteration is requested the script should not sleep
+        Assert-MockNotCalled Start-Sleep
         Remove-Mock Get-NetworkInterfaces
         Remove-Mock Log-NetworkTraffic
         Remove-Mock Start-Sleep

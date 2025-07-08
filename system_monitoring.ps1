@@ -20,6 +20,8 @@
 # ----------------------------------------------------------------------------
 # Revision:   Added explicit error handling for loading the MonitoringTools
 #             module to provide clear feedback when dependencies are missing.
+#             Avoid sleeping after the final iteration to remove unnecessary
+#             delay when the loop completes.
 
 [CmdletBinding()]
 param(
@@ -69,6 +71,9 @@ for ($i = 0; $i -lt $Iterations; $i++) {
     Log-DiskUsage @diskParams
 
     Log-EventData -EventLog $EventLog
-    # Pause before the next collection cycle so the log interval is predictable
-    Start-Sleep -Seconds $SleepInterval
+    # Only sleep when another loop remains so the script exits immediately
+    # after the final iteration, avoiding unnecessary delays.
+    if ($i + 1 -lt $Iterations) {
+        Start-Sleep -Seconds $SleepInterval
+    }
 }
