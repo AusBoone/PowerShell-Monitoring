@@ -67,6 +67,12 @@ Describe 'setup-scheduled-task.ps1' {
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -CpuThreshold 200 } | Should -Throw
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -DiskUsageThreshold -5 } | Should -Throw
     }
+
+    It 'throws when module import fails' {
+        Mock Import-Module { throw 'missing' }
+        { & "$PSScriptRoot/../setup-scheduled-task.ps1" } | Should -Throw -ErrorMessage 'Failed to import MonitoringTools module:'
+        Remove-Mock Import-Module
+    }
 }
 
 Describe 'system_monitoring.ps1 parameter validation' {
