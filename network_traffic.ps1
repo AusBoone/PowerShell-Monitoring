@@ -15,6 +15,8 @@
 #             loaded.
 #             Removed sleep after the final iteration so the script exits
 #             immediately when iteration limits are reached.
+#             Validates that -InterfaceName values are not empty strings so
+#             accidental blank arguments are caught early.
 
 [CmdletBinding()]
 param(
@@ -27,7 +29,10 @@ param(
     [int]$Iterations = [int]::MaxValue,
     # Optional list of adapter names or indexes to monitor. When omitted all
     # active adapters are logged. Names and indexes are compared as strings so
-    # either `Ethernet` or `1` work interchangeably.
+    # either `Ethernet` or `1` work interchangeably. ValidateNotNullOrEmpty
+    # rejects empty strings, preventing useless iterations when a blank value is
+    # supplied.
+    [ValidateNotNullOrEmpty()]
     [string[]]$InterfaceName
 )
 
