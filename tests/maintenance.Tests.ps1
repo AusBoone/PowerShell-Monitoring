@@ -53,6 +53,16 @@ Describe 'setup-scheduled-task.ps1' {
         $script:argsCaptured | Should -Match '-DiskUsageThreshold 80'
     }
 
+    It 'forwards zero values for thresholds' {
+        Mock Register-ScheduledTask {
+            param($TaskName, $TaskPath, $Action, $Trigger, $Force, $Description)
+            $script:zeroArgs = $Action.Argument
+        }
+        & "$PSScriptRoot/../setup-scheduled-task.ps1" -CpuThreshold 0 -DiskUsageThreshold 0
+        $script:zeroArgs | Should -Match '-CpuThreshold 0'
+        $script:zeroArgs | Should -Match '-DiskUsageThreshold 0'
+    }
+
     It 'throws when threshold values are out of range' {
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -CpuThreshold 200 } | Should -Throw
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -DiskUsageThreshold -5 } | Should -Throw

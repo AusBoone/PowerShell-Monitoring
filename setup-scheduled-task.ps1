@@ -11,6 +11,8 @@
 #               [-PerformanceLog <path>] [-DiskUsageLog <path>] [-EventLog <path>] \
 #               [-NetworkLog <path>] [-CpuThreshold <percent>] [-DiskUsageThreshold <percent>]
 # ----------------------------------------------------------------------------
+# Revision : Updated parameter checks to use PSBoundParameters.ContainsKey so
+#             zero can be passed as a valid threshold value.
 [CmdletBinding()]
 param(
     [ValidateSet('Hourly','Daily')]
@@ -67,8 +69,14 @@ if ($Remove.IsPresent) {
 $trigger = New-TaskTrigger -Freq $Frequency
 
 $sysArgs = "-File `"$sysScript`" -PerformanceLog `"$PerformanceLog`" -DiskUsageLog `"$DiskUsageLog`" -EventLog `"$EventLog`""
-if ($CpuThreshold) { $sysArgs += " -CpuThreshold $CpuThreshold" }
-if ($DiskUsageThreshold) { $sysArgs += " -DiskUsageThreshold $DiskUsageThreshold" }
+# PSBoundParameters.ContainsKey allows zero to be treated as a valid value
+# rather than an indication that the parameter was omitted.
+if ($PSBoundParameters.ContainsKey('CpuThreshold')) {
+    $sysArgs += " -CpuThreshold $CpuThreshold"
+}
+if ($PSBoundParameters.ContainsKey('DiskUsageThreshold')) {
+    $sysArgs += " -DiskUsageThreshold $DiskUsageThreshold"
+}
 $netArgs = "-File `"$netScript`" -NetworkLog `"$NetworkLog`""
 
 # Each action starts PowerShell with the script path and log file arguments.
