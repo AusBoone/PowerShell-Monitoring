@@ -195,6 +195,36 @@ Describe 'Send-Alert' {
         Remove-Mock Send-MailMessage
     }
 
+    # Validate the function passes a credential when SSL is not used. This
+    # scenario ensures optional parameters are forwarded independently.
+    It 'forwards credential without SSL when only credential specified' {
+        Mock Send-MailMessage {}
+        $cred = New-Object System.Management.Automation.PSCredential('u',(ConvertTo-SecureString 'p' -AsPlainText -Force))
+        Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' -Credential $cred
+        Assert-MockCalled Send-MailMessage -ParameterFilter { $Credential -eq $cred -and -not $UseSsl } -Times 1
+        Remove-Mock Send-MailMessage
+    }
+
+    # Validate the SSL switch works on its own. This protects against a bug
+    # where the flag might be ignored when no credential is supplied.
+    It 'forwards SSL without credential when only SSL specified' {
+        Mock Send-MailMessage {}
+        Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' -UseSsl
+        Assert-MockCalled Send-MailMessage -ParameterFilter { -not $Credential -and $UseSsl } -Times 1
+        Remove-Mock Send-MailMessage
+    }
+
+    # When the mail cmdlet throws an exception the function should catch it and
+    # emit a warning so monitoring continues. This test confirms that behavior.
+    It 'emits warning when Send-MailMessage fails' {
+        Mock Send-MailMessage { throw 'smtp failed' }
+        $warnings = & {
+            Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com'
+        } 3>&1 4>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+        $warnings.Message | Should -Match 'Failed to send alert'
+        Remove-Mock Send-MailMessage
+    }
+
     It 'validates mandatory parameters are not empty' {
         { Send-Alert -Message '' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' } | Should -Throw
         { Send-Alert -Message 'm' -SmtpServer '' -From 'f@e.com' -To 't@e.com' } | Should -Throw
