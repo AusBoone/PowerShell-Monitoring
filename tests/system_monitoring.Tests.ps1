@@ -247,8 +247,11 @@ Describe 'Script iteration limits' {
         Mock Log-PerformanceData {}
         Mock Log-DiskUsage {}
         Mock Log-EventData {}
+        # Mock Start-Sleep so the test doesn't actually pause. Use the minimum
+        # allowed SleepInterval (1) to satisfy parameter validation without
+        # introducing delay.
         Mock Start-Sleep {}
-        & "$PSScriptRoot/../system_monitoring.ps1" -Iterations 2 -SleepInterval 0
+        & "$PSScriptRoot/../system_monitoring.ps1" -Iterations 2 -SleepInterval 1
         Assert-MockCalled Log-PerformanceData -Times 2
         Remove-Mock Log-PerformanceData
         Remove-Mock Log-DiskUsage
@@ -259,8 +262,10 @@ Describe 'Script iteration limits' {
     It 'network script stops after specified iterations' {
         Mock Get-NetworkInterfaces { @( @{ InterfaceIndex=1; Name='eth0' } ) }
         Mock Log-NetworkTraffic {}
+        # Again mock the sleep call and pass the lowest valid interval to keep
+        # the test fast while staying within the allowed range.
         Mock Start-Sleep {}
-        & "$PSScriptRoot/../network_traffic.ps1" -Iterations 3 -SleepInterval 0
+        & "$PSScriptRoot/../network_traffic.ps1" -Iterations 3 -SleepInterval 1
         Assert-MockCalled Log-NetworkTraffic -Times 3
         Remove-Mock Get-NetworkInterfaces
         Remove-Mock Log-NetworkTraffic
