@@ -56,3 +56,102 @@ Send-Alert -Message "High CPU" -Subject "Alert" -SmtpServer "smtp.example.com" \
 ```
 Both `-Credential` and `-UseSsl` are optional depending on your mail server.
 
+## Function Examples and CSV Output
+
+### Log-PerformanceData
+Collect CPU, memory and disk statistics and append them to a log file:
+
+```powershell
+Log-PerformanceData -PerformanceLog .\perf.csv
+```
+
+Resulting CSV excerpt:
+
+```
+Timestamp,\\Processor(_Total)\\% Processor Time,\\Memory\\Available MBytes,\\PhysicalDisk(_Total)\\Disk Reads/sec,\\PhysicalDisk(_Total)\\Disk Writes/sec
+2023-01-01 12:00:00,15,2048,30,45
+```
+
+Typical analysis pulls the log into a variable and calculates averages:
+
+```powershell
+$perf = Import-Csv .\perf.csv
+($perf.'\\Processor(_Total)\\% Processor Time' | Measure-Object -Average).Average
+```
+
+### Log-DiskUsage
+Write drive usage percentages to a log:
+
+```powershell
+Log-DiskUsage -DiskUsageLog .\disk.csv
+```
+
+CSV example:
+
+```
+Timestamp,Drive,UsedPercentage
+2023-01-01 12:00:00,C,75.5
+```
+
+You can plot `UsedPercentage` over time or find spikes:
+
+```powershell
+$disk = Import-Csv .\disk.csv
+$disk | Sort-Object UsedPercentage -Descending | Select-Object -First 5
+```
+
+### Log-EventData
+Record recent error events from common Windows logs:
+
+```powershell
+Log-EventData -EventLog .\events.csv
+```
+
+CSV output looks like:
+
+```
+Timestamp,LogName,EventID,Level,Message
+2023-01-01 12:00:00,System,101,Error,Service failed to start.
+```
+
+View counts by `LogName` to see which log is most active:
+
+```powershell
+$events = Import-Csv .\events.csv
+$events | Group-Object LogName | Select-Object Name,Count
+```
+
+### Get-NetworkInterfaces
+List the adapters currently up on the system:
+
+```powershell
+Get-NetworkInterfaces
+```
+
+```
+Name     InterfaceIndex Status
+----     -------------- ------
+Ethernet 1              Up
+Wi-Fi    2              Up
+```
+
+### Log-NetworkTraffic
+Capture traffic counters for one or more interfaces:
+
+```powershell
+Log-NetworkTraffic -InterfaceName Ethernet -NetworkLog .\net.csv
+```
+
+CSV snippet:
+
+```
+Timestamp,InterfaceName,InterfaceIndex,BytesReceived,BytesSent,PacketsReceived,PacketsSent
+2023-01-01 12:00:00,Ethernet,1,100000,50000,1000,900
+```
+
+To compute total bytes sent over the logging period:
+
+```powershell
+$net = Import-Csv .\net.csv
+($net | Measure-Object BytesSent -Sum).Sum
+```
