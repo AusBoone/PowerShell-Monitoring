@@ -247,32 +247,58 @@ function Get-NetworkInterfaces {
 function Log-NetworkTraffic {
     <#
         .SYNOPSIS
-            Logs traffic statistics for a given adapter.
+            Logs traffic statistics for one or more adapters.
+        .DESCRIPTION
+            Accepts either a network adapter object via -Interface or an adapter
+            name/index via -InterfaceName. This design supports both advanced
+            scripts that already hold adapter objects and quick one-off calls by
+            name.
+        .PARAMETER Interface
+            Adapter object returned from Get-NetworkInterfaces.
+        .PARAMETER InterfaceName
+            One or more adapter names or interface indexes to record.
+        .PARAMETER NetworkLog
+            Path to the CSV file where statistics will be appended.
     #>
     param(
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory, ParameterSetName='ByObject')]
         $Interface,
+        [Parameter(Mandatory, ParameterSetName='ByName')]
+        [string[]]$InterfaceName,
         [string]$NetworkLog = 'network_log.csv'
     )
     try {
-        # Gather byte and packet counts for the specified adapter
-        $stats = Get-NetAdapterStatistics -InterfaceIndex $Interface.InterfaceIndex -ErrorAction Stop
-        $out = [ordered]@{
-            Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-            InterfaceName = $Interface.Name
-            InterfaceIndex = $Interface.InterfaceIndex
-            BytesReceived = $stats.BytesReceived
-            BytesSent = $stats.BytesSent
-            PacketsReceived = $stats.PacketsReceived
-            PacketsSent = $stats.PacketsSent
+        if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+            # Resolve adapters from the system each call to ensure the latest
+            # devices are logged when called repeatedly.
+            $interfaces = Get-NetAdapter -ErrorAction Stop | Where-Object {
+                $InterfaceName -contains $_.Name -or
+                $InterfaceName -contains $_.InterfaceIndex.ToString()
+            }
+        } else {
+            $interfaces = @($Interface)
         }
-        # Ensure directory exists before writing the snapshot
-        $dir = Split-Path -Path $NetworkLog -Parent
-        if ($dir -and -not (Test-Path $dir)) {
-            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+
+        foreach ($iface in $interfaces) {
+            # Gather byte and packet counts for each adapter
+            $stats = Get-NetAdapterStatistics -InterfaceIndex $iface.InterfaceIndex -ErrorAction Stop
+            $out = [ordered]@{
+                Timestamp       = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+                InterfaceName   = $iface.Name
+                InterfaceIndex  = $iface.InterfaceIndex
+                BytesReceived   = $stats.BytesReceived
+                BytesSent       = $stats.BytesSent
+                PacketsReceived = $stats.PacketsReceived
+                PacketsSent     = $stats.PacketsSent
+            }
+            # Ensure directory exists before writing the snapshot
+            $dir = Split-Path -Path $NetworkLog -Parent
+            if ($dir -and -not (Test-Path $dir)) {
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            }
+            # Log the snapshot of current traffic counters
+            [PSCustomObject]$out | Export-Csv -Path $NetworkLog -Append -NoTypeInformation
         }
-        # Log the snapshot of current traffic counters
-        [PSCustomObject]$out | Export-Csv -Path $NetworkLog -Append -NoTypeInformation
     } catch {
         Write-Warning "Error logging network traffic: $_"
     }
