@@ -107,6 +107,15 @@ Describe 'setup-scheduled-task.ps1' {
         $script:zeroArgs | Should -Match '-DiskUsageThreshold 0'
     }
 
+    It 'forwards interface names to network script' {
+        Mock Register-ScheduledTask {
+            param($TaskName, $TaskPath, $Action, $Trigger, $Force, $Description)
+            if ($TaskName -eq 'NetworkTraffic') { $script:ifaceArgs = $Action.Argument }
+        }
+        & "$PSScriptRoot/../setup-scheduled-task.ps1" -InterfaceName WiFi
+        $script:ifaceArgs | Should -Match '-InterfaceName WiFi'
+    }
+
     # Ensure Register-ScheduledTask receives the proper script paths and arguments
     It 'registers tasks with correct script details' {
         Mock Register-ScheduledTask {
