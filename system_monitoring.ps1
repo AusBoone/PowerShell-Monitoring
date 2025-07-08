@@ -18,6 +18,8 @@
 #             Suitable for use with
 #             scheduled tasks or manual execution.
 # ----------------------------------------------------------------------------
+# Revision:   Added explicit error handling for loading the MonitoringTools
+#             module to provide clear feedback when dependencies are missing.
 
 [CmdletBinding()]
 param(
@@ -36,7 +38,14 @@ param(
     [int]$Iterations = [int]::MaxValue
 )
 
-Import-Module "$PSScriptRoot/MonitoringTools.psd1"
+try {
+    # Import the monitoring module from the repository path. -ErrorAction Stop
+    # ensures an exception is thrown when the module cannot be loaded so the
+    # catch block can present a clear failure reason.
+    Import-Module "$PSScriptRoot/MonitoringTools.psd1" -ErrorAction Stop
+} catch {
+    throw "Failed to import MonitoringTools module: $_"
+}
 
 # Repeat the monitoring cycle the requested number of times. Leaving
 # -Iterations at the default effectively continues indefinitely.

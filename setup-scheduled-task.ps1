@@ -13,6 +13,8 @@
 # ----------------------------------------------------------------------------
 # Revision : Updated parameter checks to use PSBoundParameters.ContainsKey so
 #             zero can be passed as a valid threshold value.
+#             Added module import verification for clearer failures when the
+#             MonitoringTools module is missing.
 [CmdletBinding()]
 param(
     [ValidateSet('Hourly','Daily')]
@@ -32,6 +34,14 @@ param(
 # Windows, so bail out early if it cannot be found.
 if (-not (Get-Command Register-ScheduledTask -ErrorAction SilentlyContinue)) {
     throw 'Scheduled tasks are only supported on Windows platforms.'
+}
+
+try {
+    # Load the module so task arguments can be validated before scheduling. A
+    # missing module would otherwise cause runtime failures when the tasks run.
+    Import-Module "$PSScriptRoot/MonitoringTools.psd1" -ErrorAction Stop
+} catch {
+    throw "Failed to import MonitoringTools module: $_"
 }
 
 $taskPath = '\MonitoringTools'       # Folder in Task Scheduler for grouping tasks

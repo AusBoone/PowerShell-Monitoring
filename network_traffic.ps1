@@ -7,6 +7,8 @@
 #             the sleep interval is always a positive integer.
 # Usage:      .\network_traffic.ps1 [-NetworkLog <path>] [-SleepInterval <seconds>] [-Iterations <count>]
 # ----------------------------------------------------------------------------
+# Revision:   Added module import validation to surface clear errors when
+#             dependencies cannot be loaded.
 
 [CmdletBinding()]
 param(
@@ -19,7 +21,14 @@ param(
     [int]$Iterations = [int]::MaxValue
 )
 
-Import-Module "$PSScriptRoot/MonitoringTools.psd1"
+try {
+    # Load the MonitoringTools module from this repository. Using -ErrorAction
+    # Stop causes a terminating error if the module cannot be found, which we
+    # trap to provide a user friendly message.
+    Import-Module "$PSScriptRoot/MonitoringTools.psd1" -ErrorAction Stop
+} catch {
+    throw "Failed to import MonitoringTools module: $_"
+}
 
 # Iterate up to the requested number of times. With the default value this
 # behaves like the prior infinite while loop used for continuous logging.

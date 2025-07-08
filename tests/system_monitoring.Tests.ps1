@@ -272,3 +272,16 @@ Describe 'Script iteration limits' {
         Remove-Mock Start-Sleep
     }
 }
+
+Describe 'Module loading errors' {
+    It 'system script throws when module import fails' {
+        Mock Import-Module { throw 'missing' }
+        { & "$PSScriptRoot/../system_monitoring.ps1" -Iterations 1 -ErrorAction Stop } | Should -Throw -ErrorMessage 'Failed to import MonitoringTools module:'
+        Remove-Mock Import-Module
+    }
+    It 'network script throws when module import fails' {
+        Mock Import-Module { throw 'missing' }
+        { & "$PSScriptRoot/../network_traffic.ps1" -Iterations 1 -ErrorAction Stop } | Should -Throw -ErrorMessage 'Failed to import MonitoringTools module:'
+        Remove-Mock Import-Module
+    }
+}
