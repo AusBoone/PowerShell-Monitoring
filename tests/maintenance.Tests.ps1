@@ -136,6 +136,31 @@ Describe 'setup-scheduled-task.ps1' {
         $script:netArgs | Should -Match '-NetworkLog'
     }
 
+    It 'escapes file paths containing spaces' {
+        Mock Register-ScheduledTask {
+            param($TaskName, $TaskPath, $Action, $Trigger, $Force, $Description)
+            if ($TaskName -eq 'SystemMonitoring') { $script:sysArgsSpace = $Action.Argument }
+            if ($TaskName -eq 'NetworkTraffic') { $script:netArgsSpace = $Action.Argument }
+        }
+
+        $perfPath = 'C:\Temp Logs\perf.csv'
+        $diskPath = 'C:\Temp Logs\disk.csv'
+        $eventPath = 'C:\Temp Logs\event.csv'
+        $netPath  = 'C:\Temp Logs\net.csv'
+
+        & "$PSScriptRoot/../setup-scheduled-task.ps1" -PerformanceLog $perfPath -DiskUsageLog $diskPath -EventLog $eventPath -NetworkLog $netPath
+
+        $expectedPerf = '"' + ($perfPath -replace '"','``"') + '"'
+        $expectedDisk = '"' + ($diskPath -replace '"','``"') + '"'
+        $expectedEvent = '"' + ($eventPath -replace '"','``"') + '"'
+        $expectedNet  = '"' + ($netPath  -replace '"','``"') + '"'
+
+        $script:sysArgsSpace | Should -Match ('-PerformanceLog\s+' + [regex]::Escape($expectedPerf))
+        $script:sysArgsSpace | Should -Match ('-DiskUsageLog\s+' + [regex]::Escape($expectedDisk))
+        $script:sysArgsSpace | Should -Match ('-EventLog\s+' + [regex]::Escape($expectedEvent))
+        $script:netArgsSpace | Should -Match ('-NetworkLog\s+' + [regex]::Escape($expectedNet))
+    }
+
     It 'throws when threshold values are out of range' {
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -CpuThreshold 200 } | Should -Throw
         { & "$PSScriptRoot/../setup-scheduled-task.ps1" -DiskUsageThreshold -5 } | Should -Throw

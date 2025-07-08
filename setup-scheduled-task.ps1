@@ -19,6 +19,9 @@
 #             MonitoringTools module is missing.
 #             Introduced optional -InterfaceName parameter for network task
 #             filtering.
+#             Refactored argument quoting so file paths are safely escaped
+#             using a helper function. This prevents issues when directories
+#             contain spaces or embedded quotes.
 [CmdletBinding()]
 param(
     [ValidateSet('Hourly','Daily')]
@@ -56,6 +59,33 @@ $netTask = 'NetworkTraffic'           # Name of the network metrics task
 $sysScript = Join-Path $PSScriptRoot 'system_monitoring.ps1'
 $netScript = Join-Path $PSScriptRoot 'network_traffic.ps1'
 
+function Escape-TaskPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    <#
+        .SYNOPSIS
+        Escapes a file system path for use in a scheduled task argument string.
+
+        .DESCRIPTION
+        Any embedded quotation marks are doubled so the resulting string can be
+        surrounded with quotes safely. The final value is wrapped in double
+        quotes so paths containing spaces are handled correctly when passed to
+        powershell.exe.
+
+        .PARAMETER Path
+        The file system path to escape.
+
+        .OUTPUTS
+        System.String - the escaped path surrounded with quotes.
+    #>
+
+    # Surround the path in quotes after escaping any existing quote characters.
+    return '"' + ($Path -replace '"', '``"') + '"'
+}
+
 function New-TaskTrigger {
     param([string]$Freq)
 
@@ -84,7 +114,7 @@ if ($Remove.IsPresent) {
 
 $trigger = New-TaskTrigger -Freq $Frequency
 
-$sysArgs = "-File `"$sysScript`" -PerformanceLog `"$PerformanceLog`" -DiskUsageLog `"$DiskUsageLog`" -EventLog `"$EventLog`""
+$sysArgs = "-File $(Escape-TaskPath $sysScript) -PerformanceLog $(Escape-TaskPath $PerformanceLog) -DiskUsageLog $(Escape-TaskPath $DiskUsageLog) -EventLog $(Escape-TaskPath $EventLog)"
 # PSBoundParameters.ContainsKey allows zero to be treated as a valid value
 # rather than an indication that the parameter was omitted.
 if ($PSBoundParameters.ContainsKey('CpuThreshold')) {
@@ -93,7 +123,7 @@ if ($PSBoundParameters.ContainsKey('CpuThreshold')) {
 if ($PSBoundParameters.ContainsKey('DiskUsageThreshold')) {
     $sysArgs += " -DiskUsageThreshold $DiskUsageThreshold"
 }
-$netArgs = "-File `"$netScript`" -NetworkLog `"$NetworkLog`""
+$netArgs = "-File $(Escape-TaskPath $netScript) -NetworkLog $(Escape-TaskPath $NetworkLog)"
 if ($PSBoundParameters.ContainsKey('InterfaceName')) {
     # Pass a comma separated list so the network script can interpret multiple
     # adapter names or indexes correctly.
