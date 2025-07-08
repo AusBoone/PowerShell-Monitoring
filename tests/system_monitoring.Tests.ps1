@@ -43,6 +43,27 @@ Describe 'Log-PerformanceData' {
         }
     }
 
+    # When a value of 0 is supplied the function should alert on every sample.
+    It 'alerts when CPU threshold is zero' {
+        Mock Get-Counter {
+            [pscustomobject]@{
+                CounterSamples = @(
+                    [pscustomobject]@{ CounterName='\\Processor(_Total)\\% Processor Time'; CookedValue=10 }
+                )
+            }
+        }
+        Mock Send-Alert {}
+        $temp = New-TemporaryFile
+        try {
+            Log-PerformanceData -PerformanceLog $temp.FullName -CpuThreshold 0
+            Assert-MockCalled Send-Alert -Times 1
+        } finally {
+            Remove-Item $temp -ErrorAction SilentlyContinue
+            Remove-Mock Get-Counter
+            Remove-Mock Send-Alert
+        }
+    }
+
     It 'throws when CpuThreshold is out of range' {
         { Log-PerformanceData -CpuThreshold 150 } | Should -Throw
     }
@@ -105,6 +126,23 @@ Describe 'Log-DiskUsage' {
         $temp = New-TemporaryFile
         try {
             Log-DiskUsage -DiskUsageLog $temp.FullName -UsageThreshold 50
+            Assert-MockCalled Send-Alert -Times 1
+        } finally {
+            Remove-Item $temp -ErrorAction SilentlyContinue
+            Remove-Mock Get-PSDrive
+            Remove-Mock Send-Alert
+        }
+    }
+
+    # A threshold of 0 should also generate an alert for any non-zero usage.
+    It 'alerts when disk usage threshold is zero' {
+        Mock Get-PSDrive {
+            [pscustomobject]@{ Name='E'; Free=9GB; Size=10GB; Provider='FileSystem'; Used=$null }
+        }
+        Mock Send-Alert {}
+        $temp = New-TemporaryFile
+        try {
+            Log-DiskUsage -DiskUsageLog $temp.FullName -UsageThreshold 0
             Assert-MockCalled Send-Alert -Times 1
         } finally {
             Remove-Item $temp -ErrorAction SilentlyContinue

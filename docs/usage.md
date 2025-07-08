@@ -47,7 +47,7 @@ also accepts `-Iterations` for finite execution.
 ## Alerting
 
 Functions raise warnings or call `Send-Alert` when optional thresholds are
-exceeded. Configure SMTP details when calling `Send-Alert`:
+exceeded. Specify a value of `0` to alert on every sample. Configure SMTP details when calling `Send-Alert`:
 
 ```powershell
 Send-Alert -Message "High CPU" -Subject "Alert" -SmtpServer "smtp.example.com" \

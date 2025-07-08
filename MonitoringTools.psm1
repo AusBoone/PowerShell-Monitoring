@@ -17,6 +17,8 @@
     creation to improve robustness.
     This revision adds strict error handling (-ErrorAction Stop) to critical
     cmdlets and skips disk usage entries when a drive reports zero size.
+    Threshold comparisons now check PSBoundParameters.ContainsKey so a value
+    of 0 triggers alerts.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -113,8 +115,9 @@ function Log-PerformanceData {
         $out = [ordered]@{ Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') }
         foreach ($sample in $data.CounterSamples) {
             $out[$sample.CounterName] = $sample.CookedValue
-            # If CPU threshold provided, raise alert when exceeded
-            if ($CpuThreshold -and $sample.CounterName -match 'Processor' -and $sample.CookedValue -ge $CpuThreshold) {
+            # Check if caller supplied -CpuThreshold to allow zero values. Using
+            # ContainsKey avoids treating 0 as $false which would skip alerts.
+            if ($PSBoundParameters.ContainsKey('CpuThreshold') -and $sample.CounterName -match 'Processor' -and $sample.CookedValue -ge $CpuThreshold) {
                 $msg = "CPU usage $($sample.CookedValue)% exceeded threshold $CpuThreshold%"
                 Send-Alert -Message $msg -Subject 'CPU Threshold Exceeded'
             }
@@ -165,7 +168,8 @@ function Log-DiskUsage {
                 $usedSpace = $drive.Used
             }
             $usagePercent = ($usedSpace / $drive.Size) * 100
-            if ($UsageThreshold -and $usagePercent -ge $UsageThreshold) {
+            # Use ContainsKey so a threshold value of 0 still triggers alerts.
+            if ($PSBoundParameters.ContainsKey('UsageThreshold') -and $usagePercent -ge $UsageThreshold) {
                 $msg = "Drive $($drive.Name) usage $([math]::Round($usagePercent,2))% exceeded threshold $UsageThreshold%"
                 Send-Alert -Message $msg -Subject 'Disk Usage Threshold Exceeded'
             }
