@@ -13,6 +13,8 @@
 #             specific adapters by name or index. Includes module import
 #             validation to surface clear errors when dependencies cannot be
 #             loaded.
+#             Removed sleep after the final iteration so the script exits
+#             immediately when iteration limits are reached.
 
 [CmdletBinding()]
 param(
@@ -56,6 +58,8 @@ for ($i = 0; $i -lt $Iterations; $i++) {
         # Record traffic counters for each adapter
         Log-NetworkTraffic -Interface $iface -NetworkLog $NetworkLog
     }
-    # Wait before collecting the next sample
-    Start-Sleep -Seconds $SleepInterval
+    # Sleep only when another iteration will run to avoid delaying script exit
+    if ($i + 1 -lt $Iterations) {
+        Start-Sleep -Seconds $SleepInterval
+    }
 }
