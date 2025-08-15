@@ -5,6 +5,10 @@
 # Windows-specific cmdlets they depend on. Each scenario validates that
 # expected commands are invoked with the correct parameters without
 # modifying the real environment.
+#
+# Revision: Added negative tests for publish_module.ps1 verifying that
+# failures in underlying cmdlets propagate as terminating errors when
+# -ErrorAction Stop is specified.
 
 BeforeAll {
     # Ensure module is available for scripts that reference it
@@ -23,6 +27,43 @@ Describe 'publish_module.ps1' {
         Mock Unregister-PSRepository {}
         & "$PSScriptRoot/../publish_module.ps1" -GalleryUri 'https://example.com' -ApiKey 'key' -Version '1.2.3' -Confirm:$false
         Assert-MockCalled Publish-Module -Times 1
+        Assert-MockCalled Unregister-PSRepository -Times 1
+    }
+
+    It 'surfaces Update-ModuleManifest errors' {
+        # Mock the manifest update to emit a non-terminating error. With
+        # -ErrorAction Stop in the script, this should become a terminating
+        # exception that bubbles up to the caller.
+        Mock Update-ModuleManifest { Write-Error 'update failed' }
+        Mock Register-PSRepository {}
+        Mock Publish-Module {}
+        Mock Unregister-PSRepository {}
+        { & "$PSScriptRoot/../publish_module.ps1" -GalleryUri 'https://example.com' -ApiKey 'key' -Version '1.2.3' -Confirm:$false } |
+            Should -Throw -ErrorMessage 'Failed to publish module:'
+        Assert-MockCalled Unregister-PSRepository -Times 1
+    }
+
+    It 'surfaces Register-PSRepository errors' {
+        # Mock repository registration to produce a non-terminating error so
+        # -ErrorAction Stop forces a terminating exception.
+        Mock Update-ModuleManifest {}
+        Mock Register-PSRepository { Write-Error 'register failed' }
+        Mock Publish-Module {}
+        Mock Unregister-PSRepository {}
+        { & "$PSScriptRoot/../publish_module.ps1" -GalleryUri 'https://example.com' -ApiKey 'key' -Version '1.2.3' -Confirm:$false } |
+            Should -Throw -ErrorMessage 'Failed to publish module:'
+        Assert-MockCalled Unregister-PSRepository -Times 1
+    }
+
+    It 'surfaces Publish-Module errors' {
+        # Mock Publish-Module to emit a non-terminating error and confirm the
+        # script converts it into a terminating exception.
+        Mock Update-ModuleManifest {}
+        Mock Register-PSRepository {}
+        Mock Publish-Module { Write-Error 'publish failed' }
+        Mock Unregister-PSRepository {}
+        { & "$PSScriptRoot/../publish_module.ps1" -GalleryUri 'https://example.com' -ApiKey 'key' -Version '1.2.3' -Confirm:$false } |
+            Should -Throw -ErrorMessage 'Failed to publish module:'
         Assert-MockCalled Unregister-PSRepository -Times 1
     }
 }
