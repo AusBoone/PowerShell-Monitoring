@@ -21,6 +21,9 @@
     of 0 triggers alerts.
     Log-NetworkTraffic now warns and returns when requested adapters cannot be
     resolved, preventing log attempts on nonexistent interfaces.
+    Log-EventData now advances the stored timestamp by one millisecond after
+    each run to avoid duplicate log entries when multiple events share the
+    same recorded time.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -231,7 +234,11 @@ function Log-EventData {
                 if ($candidate -gt $latest) { $latest = $candidate }
             }
         }
-        $script:lastEventTime = $latest
+        # Advance marker by one millisecond so events that share the same
+        # timestamp are not reprocessed on subsequent runs. Without this
+        # offset, repeated invocations could log duplicate records when the
+        # most recent events occur at identical times across monitored logs.
+        $script:lastEventTime = $latest.AddMilliseconds(1)
     } catch {
         Write-Warning "Error logging event data: $_"
     }
