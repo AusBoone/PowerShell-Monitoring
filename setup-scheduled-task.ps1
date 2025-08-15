@@ -22,6 +22,8 @@
 #             Refactored argument quoting so file paths are safely escaped
 #             using a helper function. This prevents issues when directories
 #             contain spaces or embedded quotes.
+#             Quoted each interface name when building network task arguments so
+#             adapters with spaces or quotes in their names are handled safely.
 [CmdletBinding()]
 param(
     [ValidateSet('Hourly','Daily')]
@@ -125,9 +127,11 @@ if ($PSBoundParameters.ContainsKey('DiskUsageThreshold')) {
 }
 $netArgs = "-File $(Escape-TaskPath $netScript) -NetworkLog $(Escape-TaskPath $NetworkLog)"
 if ($PSBoundParameters.ContainsKey('InterfaceName')) {
-    # Pass a comma separated list so the network script can interpret multiple
-    # adapter names or indexes correctly.
-    $netArgs += " -InterfaceName $($InterfaceName -join ',')"
+    # Interface names may include spaces or embedded quotation marks. Each
+    # element is individually escaped and wrapped in double quotes before
+    # joining with commas so the network script receives each name intact.
+    $quotedInterfaces = $InterfaceName | ForEach-Object { '"' + ($_ -replace '"', '``"') + '"' }
+    $netArgs += " -InterfaceName $($quotedInterfaces -join ',')"
 }
 
 # Each action starts PowerShell with the script path and log file arguments.
