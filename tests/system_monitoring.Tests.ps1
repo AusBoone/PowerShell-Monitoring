@@ -215,6 +215,28 @@ Describe 'Log-NetworkTraffic' {
             Remove-Mock Get-NetAdapterStatistics
         }
     }
+
+    # When the specified interface names fail to resolve to any adapters, the
+    # function should emit a warning and avoid creating the log file. This
+    # protects scheduled monitoring jobs from unnecessary errors.
+    It 'warns when interface name does not match any adapter' {
+        # Mock only one adapter so the requested name is absent.
+        Mock Get-NetAdapter { @{ Name='eth0'; InterfaceIndex=1; Status='Up' } }
+
+        # Use a path that does not exist; the function should return before
+        # attempting to create the directory or file.
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+        $file = Join-Path $dir 'net.csv'
+
+        # Capture any warnings emitted during execution.
+        $warnings = & {
+            Log-NetworkTraffic -InterfaceName 'missing' -NetworkLog $file
+        } 3>&1 4>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+
+        $warnings.Message | Should -Match 'No network interfaces matched'
+        Test-Path $file | Should -BeFalse
+        Remove-Mock Get-NetAdapter
+    }
 }
 
 Describe 'Send-Alert' {
