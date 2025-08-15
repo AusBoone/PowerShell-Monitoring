@@ -113,7 +113,7 @@ Describe 'setup-scheduled-task.ps1' {
             if ($TaskName -eq 'NetworkTraffic') { $script:ifaceArgs = $Action.Argument }
         }
         & "$PSScriptRoot/../setup-scheduled-task.ps1" -InterfaceName WiFi
-        $script:ifaceArgs | Should -Match '-InterfaceName WiFi'
+        $script:ifaceArgs | Should -Match '-InterfaceName\s+"WiFi"'
     }
 
     # Ensure Register-ScheduledTask receives the proper script paths and arguments
@@ -147,18 +147,21 @@ Describe 'setup-scheduled-task.ps1' {
         $diskPath = 'C:\Temp Logs\disk.csv'
         $eventPath = 'C:\Temp Logs\event.csv'
         $netPath  = 'C:\Temp Logs\net.csv'
+        $ifaceNames = 'WiFi Adapter', 'Ethernet "Corp"'
 
-        & "$PSScriptRoot/../setup-scheduled-task.ps1" -PerformanceLog $perfPath -DiskUsageLog $diskPath -EventLog $eventPath -NetworkLog $netPath
+        & "$PSScriptRoot/../setup-scheduled-task.ps1" -PerformanceLog $perfPath -DiskUsageLog $diskPath -EventLog $eventPath -NetworkLog $netPath -InterfaceName $ifaceNames
 
-        $expectedPerf = '"' + ($perfPath -replace '"','``"') + '"'
-        $expectedDisk = '"' + ($diskPath -replace '"','``"') + '"'
-        $expectedEvent = '"' + ($eventPath -replace '"','``"') + '"'
-        $expectedNet  = '"' + ($netPath  -replace '"','``"') + '"'
+        $expectedPerf   = '"' + ($perfPath -replace '"','``"') + '"'
+        $expectedDisk   = '"' + ($diskPath -replace '"','``"') + '"'
+        $expectedEvent  = '"' + ($eventPath -replace '"','``"') + '"'
+        $expectedNet    = '"' + ($netPath  -replace '"','``"') + '"'
+        $expectedIfaces = $ifaceNames | ForEach-Object { '"' + ($_ -replace '"','``"') + '"' }
 
         $script:sysArgsSpace | Should -Match ('-PerformanceLog\s+' + [regex]::Escape($expectedPerf))
         $script:sysArgsSpace | Should -Match ('-DiskUsageLog\s+' + [regex]::Escape($expectedDisk))
         $script:sysArgsSpace | Should -Match ('-EventLog\s+' + [regex]::Escape($expectedEvent))
         $script:netArgsSpace | Should -Match ('-NetworkLog\s+' + [regex]::Escape($expectedNet))
+        $script:netArgsSpace | Should -Match ('-InterfaceName\s+' + [regex]::Escape(($expectedIfaces -join ',')))
     }
 
     It 'throws when threshold values are out of range' {
