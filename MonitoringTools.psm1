@@ -19,6 +19,8 @@
     cmdlets and skips disk usage entries when a drive reports zero size.
     Threshold comparisons now check PSBoundParameters.ContainsKey so a value
     of 0 triggers alerts.
+    Log-NetworkTraffic now warns and returns when requested adapters cannot be
+    resolved, preventing log attempts on nonexistent interfaces.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -281,6 +283,16 @@ function Log-NetworkTraffic {
             }
         } else {
             $interfaces = @($Interface)
+        }
+
+        # Ensure at least one adapter was resolved before attempting to log.
+        # When the requested names or indexes do not match any system
+        # interfaces, continuing would raise errors for each missing adapter.
+        # Warn the caller and exit early so the monitoring job can continue
+        # without generating unnecessary failures or empty log entries.
+        if (-not $interfaces) {
+            Write-Warning "No network interfaces matched the specified criteria."
+            return
         }
 
         foreach ($iface in $interfaces) {
