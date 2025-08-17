@@ -285,6 +285,18 @@ Describe 'Send-Alert' {
         Remove-Mock Send-MailMessage
     }
 
+    # Verify non-terminating SMTP errors still surface a warning. The mock
+    # writes an error instead of throwing, which would ordinarily be ignored
+    # without -ErrorAction Stop in Send-Alert.
+    It 'emits warning when Send-MailMessage writes a non-terminating error' {
+        Mock Send-MailMessage { Write-Error 'smtp failed' }
+        $warnings = & {
+            Send-Alert -Message 'm' -SmtpServer 's' -From 'f@e.com' -To 't@e.com'
+        } 3>&1 4>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+        $warnings.Message | Should -Match 'Failed to send alert'
+        Remove-Mock Send-MailMessage
+    }
+
     It 'validates mandatory parameters are not empty' {
         { Send-Alert -Message '' -SmtpServer 's' -From 'f@e.com' -To 't@e.com' } | Should -Throw
         { Send-Alert -Message 'm' -SmtpServer '' -From 'f@e.com' -To 't@e.com' } | Should -Throw

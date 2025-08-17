@@ -24,6 +24,9 @@
     Log-EventData now advances the stored timestamp by one millisecond after
     each run to avoid duplicate log entries when multiple events share the
     same recorded time.
+    Send-Alert now forces Send-MailMessage to treat all errors as terminating
+    (-ErrorAction Stop) so transient SMTP issues trigger a warning and do not
+    halt monitoring tasks.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -84,8 +87,11 @@ function Send-Alert {
         if ($Credential) { $mailParams.Credential = $Credential }
         if ($UseSsl.IsPresent) { $mailParams.UseSsl = $true }
 
-        # Use the built-in cmdlet so sending mail works without extra modules
-        Send-MailMessage @mailParams
+        # Use the built-in cmdlet so sending mail works without extra modules.
+        # -ErrorAction Stop converts non-terminating errors from Send-MailMessage
+        # into terminating ones, allowing the catch block below to surface a
+        # clear warning while keeping the monitoring pipeline alive.
+        Send-MailMessage @mailParams -ErrorAction Stop
     } catch {
         Write-Warning "Failed to send alert: $_"
     }
