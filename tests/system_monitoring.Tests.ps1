@@ -168,6 +168,26 @@ Describe 'Log-DiskUsage' {
         }
     }
 
+    It 'skips drives missing Used and Free properties' {
+        # Some drives may omit both Used and Free metrics; the function should
+        # warn and move on without creating a log entry for such drives.
+        Mock Get-PSDrive {
+            [pscustomobject]@{ Name='F'; Free=$null; Size=5GB; Provider='FileSystem'; Used=$null }
+        }
+        # Use a path that does not exist; skipping should prevent file creation.
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+        $file = Join-Path $dir 'disk.csv'
+
+        $warnings = & {
+            Log-DiskUsage -DiskUsageLog $file
+        } 3>&1 4>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+
+        $warnings.Message | Should -Match 'missing free space'
+        Test-Path $file | Should -BeFalse
+        if (Test-Path $dir) { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
+        Remove-Mock Get-PSDrive
+    }
+
     It 'throws when UsageThreshold is out of range' {
         { Log-DiskUsage -UsageThreshold 150 } | Should -Throw
     }

@@ -27,6 +27,9 @@
     Send-Alert now forces Send-MailMessage to treat all errors as terminating
     (-ErrorAction Stop) so transient SMTP issues trigger a warning and do not
     halt monitoring tasks.
+    Log-DiskUsage now verifies the Free property when Used is unavailable,
+    warning and skipping drives lacking both metrics to prevent calculation
+    errors.
 #>
 
 # Exported functions must be dot-sourced in scripts or imported as a module
@@ -172,8 +175,15 @@ function Log-DiskUsage {
                 Write-Warning "Drive $($drive.Name) size reported as zero; skipping"
                 continue
             }
-            # On some systems the Used property is unavailable, so compute it
+            # On some systems the Used property is unavailable, so compute it.
             if ($null -eq $drive.Used) {
+                # Without the Free property we cannot derive the used space,
+                # so emit a warning and move on to the next drive. This guards
+                # against drives that expose neither Used nor Free metrics.
+                if ($null -eq $drive.Free) {
+                    Write-Warning "Drive $($drive.Name) missing free space information"
+                    continue
+                }
                 $usedSpace = $drive.Size - $drive.Free
             } else {
                 $usedSpace = $drive.Used
